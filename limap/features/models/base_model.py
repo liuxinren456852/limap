@@ -4,9 +4,10 @@ See mnist_net.py for an example of model.
 """
 
 from abc import ABCMeta, abstractmethod
+from copy import copy
+
 from omegaconf import OmegaConf
 from torch import nn
-from copy import copy
 
 
 class BaseModel(nn.Module, metaclass=ABCMeta):
@@ -31,21 +32,25 @@ class BaseModel(nn.Module, metaclass=ABCMeta):
         metrics(self, pred, data): method that returns a dictionary of metrics,
         each as a batch of scalars.
     """
+
     base_default_conf = {
-        'name': None,
-        'trainable': False,  # if false: do not optimize this model parameters
-        'freeze_batch_normalization': False,  # use test-time statistics
+        "name": None,
+        "trainable": False,  # if false: do not optimize this model parameters
+        "freeze_batch_normalization": False,  # use test-time statistics
     }
     default_conf = {}
     required_data_keys = []
     strict_conf = True
 
-    def __init__(self, conf={}):
+    def __init__(self, conf=None):
         """Perform some logic and call the _init method of the child model."""
+        if conf is None:
+            conf = {}
         super().__init__()
         default_conf = OmegaConf.merge(
-                OmegaConf.create(self.base_default_conf),
-                OmegaConf.create(self.default_conf))
+            OmegaConf.create(self.base_default_conf),
+            OmegaConf.create(self.default_conf),
+        )
         if self.strict_conf:
             OmegaConf.set_struct(default_conf, True)
         if isinstance(conf, dict):
@@ -66,6 +71,7 @@ class BaseModel(nn.Module, metaclass=ABCMeta):
         def freeze_bn(module):
             if isinstance(module, nn.modules.batchnorm._BatchNorm):
                 module.eval()
+
         if self.conf.freeze_batch_normalization:
             self.apply(freeze_bn)
 
@@ -74,7 +80,7 @@ class BaseModel(nn.Module, metaclass=ABCMeta):
     def forward(self, data):
         """Check the data and call the _forward method of the child model."""
         for key in self.required_data_keys:
-            assert key in data, 'Missing key {} in data'.format(key)
+            assert key in data, f"Missing key {key} in data"
         return self._forward(data)
 
     @abstractmethod

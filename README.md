@@ -18,32 +18,21 @@ In this project, we provide interfaces for various geometric operations on 2D/3D
 
 ## Installation
 
-**Note**: COLMAP has been under active development since summer 2023, so we currently only support COLMAP 3.8 or before.
-
 **Install the dependencies as follows:**
+* Python 3.8/9/10
 * CMake >= 3.17
-* COLMAP 3.8 [[the official guide](https://colmap.github.io/install.html)] _make sure to use the tag 3.8_
-* PoseLib [[Guide](misc/install/poselib.md)]
-* HDF5
-```bash
-sudo apt-get install libhdf5-dev
-```
-* Python 3.9 + required packages
-```bash
-git submodule update --init --recursive
-
-# Refer to https://pytorch.org/get-started/previous-versions/ to install pytorch compatible with your CUDA
-python -m pip install torch==1.12.0 torchvision==0.13.0 
-python -m pip install -r requirements.txt
-```
+* CUDA (for deep learning based detectors/matchers)
+* System dependencies [[Command line](./misc/install/dependencies.md)]
 
 To install the LIMAP Python package:
 ```
+git submodule update --init --recursive
+python -m pip install -r requirements.txt
 python -m pip install -Ive . 
 ```
 To double check if the package is successfully installed:
 ```
-python -c "import limap"
+python -c "import limap; print(limap.__version__)"
 ```
 
 ## Quickstart
@@ -83,7 +72,7 @@ We provide two query examples for localization from the *Stairs* scene in the [7
 
 To run the examples, for instance the first one:
 ```bash
-python runners/tests/localization.py --data runners/tests/localization_test_data_stairs_1.npy
+python runners/tests/localization.py --data runners/tests/data/localization/localization_test_data_stairs_1.npy
 ```
 
 The script will print the pose error estimated using point-only (hloc), and the pose error estimated by our hybrid point-line localization framework. In addition, two images will be created in the output folder (default to `outputs/test/localization`) showing the inliers point and line correspondences in hybrid localization projected using the two estimated camera pose (by point-only and point+line) onto the query image with 2D point and line detections marked. An improved accuracy of the hybrid point-line method is expected to be observed.
@@ -97,7 +86,7 @@ If you wish to use the methods with **separate installation needed** you need to
 **The following line detectors are currently supported:**
 - [LSD](https://github.com/iago-suarez/pytlsd)
 - [SOLD2](https://github.com/cvg/SOLD2)
-- [HAWPv3](https://github.com/cherubicXN/hawp)
+- [HAWP](https://github.com/cherubicXN/hawp) (separate installation needed [[Guide](misc/install/hawpv3.md)])
 - [TP-LSD](https://github.com/Siyuada7/TP-LSD) (separate installation needed [[Guide](misc/install/tp_lsd.md)]) 
 - [DeepLSD](https://github.com/cvg/DeepLSD)
 

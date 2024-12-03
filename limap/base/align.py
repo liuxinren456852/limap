@@ -1,6 +1,7 @@
 import _limap._base as _base
 import numpy as np
 
+
 def umeyama_alignment(x, y, with_scale=True):
     """
     Computes the least squares solution parameters of an Sim(m) matrix
@@ -13,7 +14,7 @@ def umeyama_alignment(x, y, with_scale=True):
     :return: r, t, c - rotation matrix, translation vector and scale factor
     """
     if x.shape != y.shape:
-        assert False, "x.shape not equal to y.shape"
+        raise AssertionError("x.shape not equal to y.shape")
 
     # m = dimension, n = nr. of data points
     m, n = x.shape
@@ -24,7 +25,7 @@ def umeyama_alignment(x, y, with_scale=True):
 
     # variance, eq. 36
     # "transpose" for column subtraction
-    sigma_x = 1.0 / n * (np.linalg.norm(x - mean_x[:, np.newaxis])**2)
+    sigma_x = 1.0 / n * (np.linalg.norm(x - mean_x[:, np.newaxis]) ** 2)
 
     # covariance matrix, eq. 38
     outer_sum = np.zeros((m, m))
@@ -49,10 +50,11 @@ def umeyama_alignment(x, y, with_scale=True):
     t = mean_y - np.multiply(c, r.dot(mean_x))
     return r, t, c
 
+
 def align_imagecols_umeyama(imagecols_src, imagecols_dst):
     # assertion check
     assert imagecols_src.NumImages() == imagecols_dst.NumImages()
-    assert np.all(imagecols_src.get_img_ids() == imagecols_dst.get_img_ids()) == True
+    assert np.all(imagecols_src.get_img_ids() == imagecols_dst.get_img_ids())
 
     # fit transformation
     xyz_src = np.array(imagecols_src.get_locations()).transpose()
@@ -62,16 +64,24 @@ def align_imagecols_umeyama(imagecols_src, imagecols_dst):
     imagecols_aligned = imagecols_src.apply_similarity_transform(transform)
     return transform, imagecols_aligned
 
-def align_imagecols_colmap(imagecols_src, imagecols_dst, max_error = 0.01, tmp_folder = "tmp/model_convertion"):
-    import os, shutil
-    import numpy as np
-    from limap.pointsfm import convert_imagecols_to_colmap
-    import limap.util.io as limapio
+
+def align_imagecols_colmap(
+    imagecols_src,
+    imagecols_dst,
+    max_error=0.01,
+    tmp_folder="tmp/model_convertion",
+):
+    import os
     import subprocess
+
+    import numpy as np
+
+    import limap.util.io as limapio
+    from limap.pointsfm.model_converter import convert_imagecols_to_colmap
 
     # assertion check
     assert imagecols_src.NumImages() == imagecols_dst.NumImages()
-    assert np.all(imagecols_src.get_img_ids() == imagecols_dst.get_img_ids()) == True
+    assert np.all(imagecols_src.get_img_ids() == imagecols_dst.get_img_ids())
 
     limapio.check_makedirs(tmp_folder)
     src_folder = os.path.join(tmp_folder, "source")
@@ -88,33 +98,45 @@ def align_imagecols_colmap(imagecols_src, imagecols_dst, max_error = 0.01, tmp_f
         for img_id in imagecols_src.get_img_ids():
             imname = imagecols_src.image_name(img_id)
             pos = imagecols_dst.camview(img_id).pose.center()
-            f.write('{0} {1} {2} {3}\n'.format(imname, pos[0], pos[1], pos[2]))
+            f.write(f"{imname} {pos[0]} {pos[1]} {pos[2]}\n")
 
     # call comlap model aligner
+    # TODO: use pycolmap
     transform_path = os.path.join(tmp_folder, "transform.txt")
-    cmd = ['colmap', 'model_aligner',
-           '--input_path', src_folder,
-           '--output_path', tgt_folder,
-           '--ref_images_path', fname_positions,
-           '--robust_alignment', str(1),
-           '--robust_alignment_max_error', str(max_error),
-           '--transform_path', transform_path,
-           '--ref_is_gps', "false"]
+    cmd = [
+        "colmap",
+        "model_aligner",
+        "--input_path",
+        src_folder,
+        "--output_path",
+        tgt_folder,
+        "--ref_images_path",
+        fname_positions,
+        "--robust_alignment",
+        str(1),
+        "--robust_alignment_max_error",
+        str(max_error),
+        "--transform_path",
+        transform_path,
+        "--ref_is_gps",
+        "false",
+    ]
     subprocess.run(cmd)
     if not os.path.exists(transform_path):
         return None, None
 
     # read in transformation
     def read_trans(fname):
-        with open(fname, 'r') as f:
+        with open(fname) as f:
             lines = f.readlines()
         mat = []
         for idx in range(4):
-            l = lines[idx].strip('\n').split()
-            mat.append([float(k) for k in l])
+            line = lines[idx].strip("\n").split()
+            mat.append([float(k) for k in line])
         mat = np.array(mat)
         assert np.all(mat[3, :] == np.array([0, 0, 0, 1]))
         return mat[:3, :]
+
     transform = read_trans(transform_path)
 
     scale = np.linalg.norm(transform[:, 0])
@@ -127,6 +149,8 @@ def align_imagecols_colmap(imagecols_src, imagecols_dst, max_error = 0.01, tmp_f
     limapio.delete_folder(tmp_folder)
     return transform, imagecols_aligned
 
-def align_imagecols(imagecols_src, imagecols_dst, max_error = 0.01):
-    return align_imagecols_colmap(imagecols_src, imagecols_dst, max_error = max_error)
 
+def align_imagecols(imagecols_src, imagecols_dst, max_error=0.01):
+    return align_imagecols_colmap(
+        imagecols_src, imagecols_dst, max_error=max_error
+    )

@@ -1,32 +1,34 @@
-import torch
 import torch.nn as nn
 import torch.nn.init as init
+from pycolmap import logging
 
 from .nets.backbone import HourglassBackbone, SuperpointBackbone
-from .nets.junction_decoder import SuperpointDecoder
-from .nets.heatmap_decoder import PixelShuffleDecoder
 from .nets.descriptor_decoder import SuperpointDescriptor
+from .nets.heatmap_decoder import PixelShuffleDecoder
+from .nets.junction_decoder import SuperpointDecoder
 
 
 def get_model(model_cfg=None, loss_weights=None, mode="train", printing=False):
-    """ Get model based on the model configuration. """
+    """Get model based on the model configuration."""
     # Check dataset config is given
     if model_cfg is None:
         raise ValueError("[Error] The model config is required!")
 
     # List the supported options here
     if printing:
-        print("\n\n\t--------Initializing model----------")
+        logging.info("\n\n\t--------Initializing model----------")
     supported_arch = ["simple"]
-    if not model_cfg["model_architecture"] in supported_arch:
+    if model_cfg["model_architecture"] not in supported_arch:
         raise ValueError(
-            "[Error] The model architecture is not in supported arch!")
+            "[Error] The model architecture is not in supported arch!"
+        )
 
     if model_cfg["model_architecture"] == "simple":
         model = SOLD2Net(model_cfg)
     else:
         raise ValueError(
-            "[Error] The model architecture is not in supported arch!")
+            "[Error] The model architecture is not in supported arch!"
+        )
 
     # Optionally register loss weights to the model
     if mode == "train":
@@ -34,28 +36,34 @@ def get_model(model_cfg=None, loss_weights=None, mode="train", printing=False):
             for param_name, param in loss_weights.items():
                 if isinstance(param, nn.Parameter):
                     if printing:
-                        print("\t [Debug] Adding %s with value %f to model"
-                              % (param_name, param.item()))
+                        logging.info(
+                            "\t [Debug] Adding %s with value %f to model"
+                            % (param_name, param.item())
+                        )
                     model.register_parameter(param_name, param)
         else:
             raise ValueError(
-                "[Error] the loss weights can not be None in dynamic weighting mode during training.")
+                "[Error] the loss weights can not be None in dynamic weighting mode during training."
+            )
 
     # Display some summary info.
     if printing:
-        print("\tModel architecture: %s" % model_cfg["model_architecture"])
-        print("\tBackbone: %s" % model_cfg["backbone"])
-        print("\tJunction decoder: %s" % model_cfg["junction_decoder"])
-        print("\tHeatmap decoder: %s" % model_cfg["heatmap_decoder"])
-        print("\t-------------------------------------")
+        logging.info(
+            "\tModel architecture: %s" % model_cfg["model_architecture"]
+        )
+        logging.info("\tBackbone: %s" % model_cfg["backbone"])
+        logging.info("\tJunction decoder: %s" % model_cfg["junction_decoder"])
+        logging.info("\tHeatmap decoder: %s" % model_cfg["heatmap_decoder"])
+        logging.info("\t-------------------------------------")
 
     return model
 
 
 class SOLD2Net(nn.Module):
-    """ Full network for SOLD². """
+    """Full network for SOLD²."""
+
     def __init__(self, model_cfg):
-        super(SOLD2Net, self).__init__()
+        super().__init__()
         self.name = model_cfg["model_name"]
         self.cfg = model_cfg
 
@@ -68,8 +76,10 @@ class SOLD2Net(nn.Module):
         self.junction_decoder = self.get_junction_decoder()
 
         # List supported heatmap decoder options
-        self.supported_heatmap_decoder = ["pixel_shuffle",
-                                          "pixel_shuffle_single"]
+        self.supported_heatmap_decoder = [
+            "pixel_shuffle",
+            "pixel_shuffle_single",
+        ]
         self.heatmap_decoder = self.get_heatmap_decoder()
 
         # List supported descriptor decoder options
@@ -99,10 +109,9 @@ class SOLD2Net(nn.Module):
         return outputs
 
     def get_backbone(self):
-        """ Retrieve the backbone encoder network. """
-        if not self.cfg["backbone"] in self.supported_backbone:
-            raise ValueError(
-                "[Error] The backbone selection is not supported.")
+        """Retrieve the backbone encoder network."""
+        if self.cfg["backbone"] not in self.supported_backbone:
+            raise ValueError("[Error] The backbone selection is not supported.")
 
         # lcnn backbone (stacked hourglass)
         if self.cfg["backbone"] == "lcnn":
@@ -116,79 +125,84 @@ class SOLD2Net(nn.Module):
             feat_channel = 128
 
         else:
-            raise ValueError(
-                "[Error] The backbone selection is not supported.")
+            raise ValueError("[Error] The backbone selection is not supported.")
 
         return backbone, feat_channel
 
     def get_junction_decoder(self):
-        """ Get the junction decoder. """
-        if (not self.cfg["junction_decoder"]
-            in self.supported_junction_decoder):
+        """Get the junction decoder."""
+        if self.cfg["junction_decoder"] not in self.supported_junction_decoder:
             raise ValueError(
-                "[Error] The junction decoder selection is not supported.")
+                "[Error] The junction decoder selection is not supported."
+            )
 
         # superpoint decoder
         if self.cfg["junction_decoder"] == "superpoint_decoder":
-            decoder = SuperpointDecoder(self.feat_channel,
-                                        self.cfg["backbone"])
+            decoder = SuperpointDecoder(self.feat_channel, self.cfg["backbone"])
         else:
             raise ValueError(
-                "[Error] The junction decoder selection is not supported.")
+                "[Error] The junction decoder selection is not supported."
+            )
 
         return decoder
 
     def get_heatmap_decoder(self):
-        """ Get the heatmap decoder. """
-        if not self.cfg["heatmap_decoder"] in self.supported_heatmap_decoder:
+        """Get the heatmap decoder."""
+        if self.cfg["heatmap_decoder"] not in self.supported_heatmap_decoder:
             raise ValueError(
-                "[Error] The heatmap decoder selection is not supported.")
+                "[Error] The heatmap decoder selection is not supported."
+            )
 
         # Pixel_shuffle decoder
         if self.cfg["heatmap_decoder"] == "pixel_shuffle":
             if self.cfg["backbone"] == "lcnn":
-                decoder = PixelShuffleDecoder(self.feat_channel,
-                                              num_upsample=2)
+                decoder = PixelShuffleDecoder(self.feat_channel, num_upsample=2)
             elif self.cfg["backbone"] == "superpoint":
-                decoder = PixelShuffleDecoder(self.feat_channel,
-                                              num_upsample=3)
+                decoder = PixelShuffleDecoder(self.feat_channel, num_upsample=3)
             else:
                 raise ValueError("[Error] Unknown backbone option.")
         # Pixel_shuffle decoder with single channel output
         elif self.cfg["heatmap_decoder"] == "pixel_shuffle_single":
             if self.cfg["backbone"] == "lcnn":
                 decoder = PixelShuffleDecoder(
-                    self.feat_channel, num_upsample=2, output_channel=1)
+                    self.feat_channel, num_upsample=2, output_channel=1
+                )
             elif self.cfg["backbone"] == "superpoint":
                 decoder = PixelShuffleDecoder(
-                    self.feat_channel, num_upsample=3, output_channel=1)
+                    self.feat_channel, num_upsample=3, output_channel=1
+                )
             else:
                 raise ValueError("[Error] Unknown backbone option.")
         else:
             raise ValueError(
-                "[Error] The heatmap decoder selection is not supported.")
+                "[Error] The heatmap decoder selection is not supported."
+            )
 
         return decoder
 
     def get_descriptor_decoder(self):
-        """ Get the descriptor decoder. """
-        if (not self.cfg["descriptor_decoder"]
-            in self.supported_descriptor_decoder):
+        """Get the descriptor decoder."""
+        if (
+            self.cfg["descriptor_decoder"]
+            not in self.supported_descriptor_decoder
+        ):
             raise ValueError(
-                "[Error] The descriptor decoder selection is not supported.")
+                "[Error] The descriptor decoder selection is not supported."
+            )
 
         # SuperPoint descriptor
         if self.cfg["descriptor_decoder"] == "superpoint_descriptor":
             decoder = SuperpointDescriptor(self.feat_channel)
         else:
             raise ValueError(
-                "[Error] The descriptor decoder selection is not supported.")
+                "[Error] The descriptor decoder selection is not supported."
+            )
 
         return decoder
 
 
 def weight_init(m):
-    """ Weight initialization function. """
+    """Weight initialization function."""
     # Conv2D
     if isinstance(m, nn.Conv2d):
         init.xavier_normal_(m.weight.data)

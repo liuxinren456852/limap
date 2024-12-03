@@ -1,6 +1,7 @@
-import yaml
-import numpy as np
 import copy
+
+import yaml
+
 
 def update_recursive(dict1, dictinfo):
     for k, v in dictinfo.items():
@@ -11,16 +12,18 @@ def update_recursive(dict1, dictinfo):
         else:
             dict1[k] = v
 
+
 def update_recursive_deepcopy(dict1, dictinfo):
     dict1_copy = copy.deepcopy(dict1)
     update_recursive(dict1_copy, dictinfo)
     return dict1_copy
 
+
 def load_config(config_file, default_path=None):
-    with open(config_file, 'r') as f:
+    with open(config_file) as f:
         cfg_loaded = yaml.load(f, Loader=yaml.Loader)
 
-    base_config_file = cfg_loaded.get('base_config_file')
+    base_config_file = cfg_loaded.get("base_config_file")
     if base_config_file is not None:
         cfg = load_config(base_config_file)
     elif (default_path is not None) and (config_file != default_path):
@@ -29,6 +32,7 @@ def load_config(config_file, default_path=None):
         cfg = dict()
     update_recursive(cfg, cfg_loaded)
     return cfg
+
 
 def update_config(cfg, unknown, shortcuts):
     def get_val_from_keys(cfg, keys):
@@ -47,25 +51,30 @@ def update_config(cfg, unknown, shortcuts):
             continue
 
         # process value
-        keys = arg.replace("--", "").split('.')
+        keys = arg.replace("--", "").split(".")
         val = get_val_from_keys(cfg, keys)
         argtype = type(val)
-        if argtype == bool:
+        if argtype is bool:
             # test if it is a store action
-            if idx == len(unknown) - 1:
-                v = True
-            elif unknown[idx+1].startswith("--"):
+            if idx == len(unknown) - 1 or unknown[idx + 1].startswith("--"):
                 v = True
             else:
-                v = (unknown[idx+1].lower() == 'true')
+                v = unknown[idx + 1].lower() == "true"
         else:
-            v = unknown[idx+1]
+            v = unknown[idx + 1]
             if val is not None:
-                if argtype == list and v.startswith('['):
-                    v = eval(v)
+                if argtype is list:
+                    if v.startswith("["):
+                        v = eval(v)
+                    else:
+                        for i in range(idx + 2, len(unknown)):
+                            if unknown[i].startswith("--"):
+                                break
+                            v += "," + unknown[i]
+                        v = eval("[" + v + "]")
                 v = argtype(v)
 
-        if isinstance(v, str) and (v.lower() == 'none' or v.lower() == 'null'):
+        if isinstance(v, str) and (v.lower() == "none" or v.lower() == "null"):
             v = None
 
         # modify value
@@ -81,6 +90,5 @@ def update_config(cfg, unknown, shortcuts):
         elif n_lvls == 5:
             cfg[keys[0]][keys[1]][keys[2]][keys[3]][keys[4]] = v
         else:
-            raise ValueError('number of levels are too high to handle!!')
+            raise ValueError("number of levels are too high to handle!!")
     return cfg
-
